@@ -1,6 +1,5 @@
 #include "mbed.h"
 #include "bbcar.h"
-
 #include "MQTTNetwork.h"
 #include "MQTTmbed.h"
 #include "MQTTClient.h"
@@ -62,12 +61,12 @@ void sendmsg(){
 
 
 void checking_object(){
-    car.turn(-50, -0.1);  // turn left 
+    car.turn(-60, -0.1);  // turn left 
 
     printf("scanning for object\n" );
     while(1) {
         printf("Ping = %f\r\n", (double)ping1);
-      if((double)ping1>50);
+      if((double)ping1>45);
       else {
         printf("object on the left has a distance of = %f\n", (double)ping1);
         car.stop();
@@ -76,31 +75,40 @@ void checking_object(){
       ThisThread::sleep_for(10ms);
    }
     car.turn(-50, 0.1);  // turn right 
-    ThisThread::sleep_for(2s);
+    ThisThread::sleep_for(2100ms);
 
     while(1) {
        printf("Ping = %f\r\n", (double)ping1);
-      if((double)ping1>50) ;
+      if((double)ping1>45) ;
       else {
         printf("object on the right has a distance of = %f\n", (double)ping1);
         //printf("%d \n" , car.servo1.angle);
         ans = ((sin(car.servo1.angle/2)*(double)ping1));
-        printf("distance between two object is approximately %d you can pass forward\n", abs(ans*2));
+        printf("distance between two object is approximately %d \n", abs(ans*2));
         car.stop();
         break;  //break this while
       }
       ThisThread::sleep_for(10ms);
    }
 
-    printf("turn left 0.1 \n");
-    car.turn(-50, -0.1);  // turn left back to the same pos
-    ThisThread::sleep_for(1500ms);
 
-   return;
+    if (abs(ans*2) < 15) {
+        printf("distance too small can't pass \n");
+        car.stop();
+        ThisThread::sleep_for(10ms);
+        return;
+    }   
+    else{
+        printf("turn left 0.1 \n");
+        car.turn(-50, -0.1);  // turn left back to the same pos
+        ThisThread::sleep_for(1500ms);
+        return;
+    } 
 }
 
 void object_infront(){
     car.goStraight(-50); //moveforward 
+    ThisThread::sleep_for(500ms);
     printf("move forward \n");
    while(1) {
         pattern = (int)qti1;
@@ -159,22 +167,22 @@ int main() {
    printf("Start\n");
    //object_infront();
 
-   car.goStraight(-50);
+   car.goStraight(-60);
    while(1) {
       car.checkDistance(1);
 
       pattern = (int)qti1;
       printf("%d\n",pattern);
       
-      if (pattern == 0b1000){car.turn(-50, 0.1);}  // 8  right  
-      else if (pattern == 0b1100){car.turn(-50, 0.5);}
-      else if (pattern == 0b0100){car.turn(-50, 0.7);}  
-      else if (pattern == 0b0110){car.goStraight(-50);}  // 6 forward
-      else if (pattern == 0b0010){car.turn(-50, -0.7);}//2 left  alittle
-      else if (pattern == 0b0011){car.turn(-50, -0.5);}
-      else if (pattern == 0b0001){car.turn(-50, -0.1);}
-      else if (pattern == 0b0000){car.goStraight(50);}///0  go backward
-      else if (pattern == 0b0111 && checkpoint == 3){   // 7 
+      if (pattern == 0b1000){car.turn(-60, 0.1);}  // 8  right  
+      else if (pattern == 0b1100){car.turn(-60, 0.5);}   //12
+      else if (pattern == 0b0100){car.turn(-60, 0.7);}   // 4
+      else if (pattern == 0b0110){car.goStraight(-60);}  // 6 forward
+      else if (pattern == 0b0010){car.turn(-60, -0.7);}//2 left  alittle
+      else if (pattern == 0b0011){car.turn(-60, -0.5);} //3
+      else if (pattern == 0b0001){car.turn(-60, -0.1);} //1
+      else if (pattern == 0b0000){car.goStraight(60);}///0  go backward
+      else if (pattern == 0b0101){   // 5
                 //printf("checking object\n");
                 checkpoint = 4;
                 sendmsg();
@@ -186,11 +194,29 @@ int main() {
                 sprintf(buf, "distance between two object is approximately %d \n", abs(ans*2));
                 printf(buf);
                 message.payloadlen = strlen(buf)+1;
-                rc = client.publish(topic, message);            
-            } //7
-      else if (pattern == 0b1110){car.turn(-50, -0.7);} //14
-      else if (pattern == 0b1101){car.turn(-50,-0.7);}//13 just incase
-      else {car.goStraight(-50);}       // else just go forward
+                rc = client.publish(topic, message);  
+                if (abs(ans*2) < 15) {
+                    printf(" distance too small can't pass");
+                    break;
+                }          
+            } 
+      else if (pattern == 0b1010){
+            checkpoint = 5;
+            sendmsg();  
+            rc = client.publish(topic, message);
+            object_infront();   
+            
+            sprintf(buf, "object infront move backward\n");
+            printf(buf);
+            message.payloadlen = strlen(buf)+1;
+            rc = client.publish(topic, message);
+                 
+        }//10 
+      else if(pattern == 0b0111){car.turn(-60, -0.7);} // 7 left abit
+      else if (pattern == 0b1110){car.turn(-60, 0.7);} //14 right abit
+      else if (pattern == 0b1101){car.turn(-60,-0.8);}//13 just incase
+      else if (pattern == 0b1011){car.turn(-60,0.8);}//11 just incase
+      else {car.goStraight(-60);}       // else just go forward
 
 
       if (pattern == 0b1111){
@@ -200,11 +226,11 @@ int main() {
          checkpoint += 1;       
          printf("check point = %d\n",checkpoint);
          
-         car.goStraight(-50);
+         car.goStraight(-60);
          printf("continue moving\n");
          
         if (checkpoint == 1){ //for exiting the circle
-            //printf("checkpoint 1 turn left\n");  
+            printf("checkpoint 1 turn left\n");  
             sendmsg();
             rc = client.publish(topic, message);
             sprintf(buf, "checkpoint 1 turn left\n");
@@ -212,16 +238,16 @@ int main() {
             message.payloadlen = strlen(buf)+1;
             rc = client.publish(topic, message);
 
-            car.turn(-50, -0.1); //car turn left to exit the circle
-            ThisThread::sleep_for(2s);
+            car.turn(-60, -0.1); //car turn left to exit the circle
+            ThisThread::sleep_for(1200ms);
 
             if (pattern == 6){
-                car.goStraight(-50);
+                car.goStraight(-60);
             }   
         }
         if (checkpoint == 2){
             car.goStraight(-100);
-            ThisThread::sleep_for(1s);
+            ThisThread::sleep_for(500ms);
             sendmsg();
             rc = client.publish(topic, message);
             sprintf(buf, "straight forward road \n");
@@ -232,7 +258,7 @@ int main() {
 
         if (checkpoint == 3){
             //printf("normal speed\n"); 
-            car.goStraight(-50);
+            car.goStraight(-60);
             ThisThread::sleep_for(1s);
             sendmsg();
             rc = client.publish(topic, message);
@@ -248,19 +274,19 @@ int main() {
         //  }
 
         if (checkpoint == 5){
-            sendmsg();  
-            rc = client.publish(topic, message);
-            object_infront();
+            // sendmsg();  
+            // rc = client.publish(topic, message);
+            // object_infront();
 
-            sprintf(buf, "object infront move backward\n");
-            printf(buf);
-            message.payloadlen = strlen(buf)+1;
-            rc = client.publish(topic, message);
+            // sprintf(buf, "object infront move backward\n");
+            // printf(buf);
+            // message.payloadlen = strlen(buf)+1;
+            // rc = client.publish(topic, message);
         }
 
         if(checkpoint == 6){
-            car.turn(-50, 0.1); //turn rightttt to go the other way
-            ThisThread::sleep_for(2s);
+            car.turn(-60, 0.1); //turn rightttt to go the other way
+            ThisThread::sleep_for(2300ms);
             sendmsg();
             rc = client.publish(topic, message);
             sprintf(buf, "turn right since there an object infront\n");
@@ -269,7 +295,7 @@ int main() {
             rc = client.publish(topic, message);
 
             if (pattern == 6){
-                car.goStraight(-50);
+                car.goStraight(-60);
             }
         }
 
@@ -282,15 +308,15 @@ int main() {
             message.payloadlen = strlen(buf)+1;
             rc = client.publish(topic, message);
 
-            car.goStraight(-50);
+            car.goStraight(-60);
             ThisThread::sleep_for(1s);
         }
  
-        if (checkpoint == 8){
+        if (checkpoint == 9){
             car.stop(); 
             sendmsg();
             rc = client.publish(topic, message);
-            //printf("distance = %f\n", abs(((car.servo0.angle)*6.5*3.14/360)));
+            printf("distance = %f\n", abs(((car.servo0.angle)*6.5*3.14/360)));
             sprintf(buf, "the car have reach it destination, approximate distance travel= %f \n", abs(((car.servo0.angle)*6.5*3.14/360)));
             printf(buf);
             message.payloadlen = strlen(buf)+1;
